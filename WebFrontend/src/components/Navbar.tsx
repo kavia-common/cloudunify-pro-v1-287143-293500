@@ -15,7 +15,7 @@ export default function Navbar({ theme, onToggleTheme }: Props): JSX.Element {
 
   const handleLogout = () => {
     logout();
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   const displayName = user?.email || user?.username || user?.sub || 'User';

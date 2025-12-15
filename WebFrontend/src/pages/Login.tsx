@@ -11,7 +11,7 @@ export default function Login(): JSX.Element {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation() as any;
-  const fromPath = location?.state?.from?.pathname ?? '/dashboard';
+  const fromPath = location?.state?.from?.pathname ?? '/app';
 
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');

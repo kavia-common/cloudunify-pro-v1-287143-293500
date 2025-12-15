@@ -10,7 +10,7 @@ export default function Sidebar(): JSX.Element {
   return (
     <aside className="sidebar" aria-label="Primary">
       <ul className="side-nav" role="list">
-        <li><NavLink to="/" end className={linkClass}>Home</NavLink></li>
+        <li><NavLink to="/app" end className={linkClass}>Home</NavLink></li>
         <li><NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink></li>
         <li><NavLink to="/resources" className={linkClass}>Resources</NavLink></li>
         <li><NavLink to="/costs" className={linkClass}>Costs</NavLink></li>
