@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart } from '../components/Chart';
+import BulkUploader from '../components/BulkUploader';
 import { apiClient } from '../lib/api/client';
+import { parseCostFile, type CostIngestRow } from '../lib/mapping';
 import type { CostSummary } from '../types/api';
 
 // PUBLIC_INTERFACE
@@ -8,11 +10,13 @@ export default function Costs(): JSX.Element {
   /**
    * Costs page showing total cost and breakdowns by provider and region.
    * Calls GET /costs/summary with a period query (default: monthly).
+   * Includes bulk upload for costs (CSV/XLSX) with client/server validation feedback.
    */
   const [period, setPeriod] = useState<string>('monthly');
   const [summary, setSummary] = useState<CostSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [version, setVersion] = useState<number>(0); // bump to refetch after upload
 
   const periodOptions = useMemo(
     () => [
@@ -40,7 +44,7 @@ export default function Costs(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, [period, version]);
 
   const total = summary?.total_cost ?? 0;
 
@@ -48,6 +52,13 @@ export default function Costs(): JSX.Element {
     <section>
       <h1 className="title">Costs</h1>
       <p className="description">Explore cost summary, breakdowns, and trends.</p>
+
+      <BulkUploader<CostIngestRow>
+        kind="costs"
+        parseFile={parseCostFile}
+        postBulk={(payload) => apiClient().costs.bulkUpload(payload)}
+        onUploaded={() => setVersion((v) => v + 1)}
+      />
 
       <form className="filter-bar" aria-label="Cost period selector" onSubmit={(e) => e.preventDefault()}>
         <label className="filter-field">

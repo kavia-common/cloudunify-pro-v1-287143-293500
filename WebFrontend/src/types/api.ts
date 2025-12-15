@@ -94,3 +94,37 @@ export interface AutomationRuleCreate {
   /** Cron-like schedule string (e.g., "0 2 * * *") */
   cron_schedule: string;
 }
+
+/** Bulk upload types used by resources and costs uploaders */
+
+// PUBLIC_INTERFACE
+export interface BulkUploadRowError {
+  /** 1-based row number (including header row in the original file) */
+  rowNumber: number;
+  /** Human-readable error messages for the row */
+  errors: string[];
+}
+
+// PUBLIC_INTERFACE
+export interface BulkUploadResponse {
+  /** Number of new records inserted by the server */
+  inserted: number;
+  /** Number of existing records updated by the server */
+  updated: number;
+  /** Number of rows rejected by the server */
+  invalid: number;
+  /** Optional row-level errors returned by the server */
+  errors?: BulkUploadRowError[];
+  /** Optional message from server */
+  message?: string;
+}
+
+// PUBLIC_INTERFACE
+export interface BulkUploadRequest<T = unknown> {
+  /** Organization scope for the ingest operation */
+  organization_id: string;
+  /** Optional cloud account identifier */
+  account_id?: string;
+  /** Valid rows to be uploaded */
+  rows: T[];
+}

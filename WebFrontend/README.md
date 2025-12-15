@@ -27,6 +27,29 @@ Launches the test runner in interactive watch mode.
 Builds the app for production to the `build` folder.\
 It correctly bundles React in production mode and optimizes the build for the best performance.
 
+## Environment configuration
+
+The frontend reads the backend base URL from a Vite environment variable:
+
+- `VITE_API_BASE` — Required. Example: `https://api.cloudunify.pro/api/v1`
+
+Configure it via your environment or a `.env` file at the project root during development (never commit secrets).
+
+## Bulk upload (Resources & Costs)
+
+The Resources and Costs pages include a bulk uploader that accepts `.csv` or `.xlsx` files:
+
+- Files are parsed client-side using the mapping utilities (CSV/XLSX)
+- Headers are normalized and data coerced (dates, numbers, enums)
+- Client-side validation highlights row-level issues before upload
+- Valid rows are POSTed to the backend (`/resources/bulk` or `/costs/bulk`)
+- The Authorization header is automatically attached via the configured HTTP client
+- The server response shows counts for inserted/updated/invalid and any row-level errors
+
+For uploads, provide:
+- Organization ID (required)
+- Cloud Account ID (optional)
+
 ## Customization
 
 ### Colors

@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import FilterBar, { FilterField } from '../components/FilterBar';
 import DataTable, { Column } from '../components/DataTable';
 import Pagination from '../components/Pagination';
+import BulkUploader from '../components/BulkUploader';
 import { apiClient } from '../lib/api/client';
+import { parseResourceFile, type ResourceIngestRow } from '../lib/mapping';
 import type { Resource, ResourceListResponse } from '../types/api';
 
 // PUBLIC_INTERFACE
@@ -10,6 +12,7 @@ export default function Resources(): JSX.Element {
   /**
    * Resources page with provider/region/state filters and pagination.
    * Calls GET /resources with query parameters and renders a table.
+   * Includes bulk upload for resources (CSV/XLSX) with client/server validation feedback.
    */
   const [filters, setFilters] = useState<{ provider: string; region: string; state: string }>({
     provider: '',
@@ -22,6 +25,7 @@ export default function Resources(): JSX.Element {
   const [error, setError] = useState<string>('');
   const [rows, setRows] = useState<Resource[]>([]);
   const [total, setTotal] = useState<number>(0);
+  const [version, setVersion] = useState<number>(0); // bump to refresh after upload
 
   const fields: FilterField[] = useMemo(
     () => [
@@ -104,12 +108,19 @@ export default function Resources(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [filters.provider, filters.region, filters.state, page, size]);
+  }, [filters.provider, filters.region, filters.state, page, size, version]);
 
   return (
     <section>
       <h1 className="title">Resources</h1>
       <p className="description">Browse and filter cloud resources across providers.</p>
+
+      <BulkUploader<ResourceIngestRow>
+        kind="resources"
+        parseFile={parseResourceFile}
+        postBulk={(payload) => apiClient().resources.bulkUpload(payload)}
+        onUploaded={() => setVersion((v) => v + 1)}
+      />
 
       <FilterBar fields={fields} values={filters} onChange={onChange} onReset={onReset} ariaLabel="Resource filters" />
 
