@@ -78,3 +78,19 @@ export interface AutomationRule {
   cron_schedule: string;
   created_at: string;
 }
+
+// PUBLIC_INTERFACE
+export interface AutomationRuleCreate {
+  /** Name for the rule */
+  name: string;
+  /** Rule classification/type (e.g., "schedule_stop") */
+  rule_type: string;
+  /** Whether the rule is initially enabled */
+  is_enabled: boolean;
+  /** Criteria used to match resources (JSON object) */
+  match_criteria: Record<string, unknown>;
+  /** Action performed when rule triggers */
+  action_type: string;
+  /** Cron-like schedule string (e.g., "0 2 * * *") */
+  cron_schedule: string;
+}

@@ -7,10 +7,10 @@ import Resources from './pages/Resources';
 import Costs from './pages/Costs';
 import Recommendations from './pages/Recommendations';
 import Automation from './pages/Automation';
+import Activity from './pages/Activity';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
-import RoleGuard from './components/RoleGuard';
 
 // PUBLIC_INTERFACE
 export default function App(): JSX.Element {
@@ -55,9 +55,15 @@ export default function App(): JSX.Element {
           path="/automation"
           element={
             <ProtectedRoute>
-              <RoleGuard allowed={['admin']} fallbackPath="/dashboard">
-                <Automation />
-              </RoleGuard>
+              <Automation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/activity"
+          element={
+            <ProtectedRoute>
+              <Activity />
             </ProtectedRoute>
           }
         />

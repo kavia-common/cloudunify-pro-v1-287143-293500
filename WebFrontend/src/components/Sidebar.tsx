@@ -16,6 +16,7 @@ export default function Sidebar(): JSX.Element {
         <li><NavLink to="/costs" className={linkClass}>Costs</NavLink></li>
         <li><NavLink to="/recommendations" className={linkClass}>Recommendations</NavLink></li>
         <li><NavLink to="/automation" className={linkClass}>Automation</NavLink></li>
+        <li><NavLink to="/activity" className={linkClass}>Activity</NavLink></li>
       </ul>
     </aside>
   );
