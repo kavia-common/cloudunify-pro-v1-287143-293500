@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { BulkUploadRequest, BulkUploadResponse } from '../types/api';
 import type { ParseResult } from '../lib/mapping';
 import { mergeRowErrors, type RowError } from '../lib/mapping/utils';
@@ -14,10 +14,13 @@ type Props<T extends Record<string, any>> = {
   onUploaded?: () => void;
 };
 
+const ORG_KEY = 'cup_org';
+const ACCOUNT_KEY = 'cup_account';
+
 /**
  * PRIVATE: narrow file accept attribute based on kind
  */
-function acceptFor(kind: AcceptKind): string {
+function acceptFor(_kind: AcceptKind): string {
   // Accept both CSV and Excel formats
   return [
     '.csv',
@@ -27,6 +30,47 @@ function acceptFor(kind: AcceptKind): string {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-excel'
   ].join(',');
+}
+
+/**
+ * Attempt to read a value from localStorage, returning undefined on failure/empty.
+ */
+function readFromLocalStorage(key: string): string | undefined {
+  try {
+    const v = localStorage.getItem(key);
+    if (v && v.trim()) return v.trim();
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+/**
+ * Save a value to localStorage (empty values remove the key), ignoring errors.
+ */
+function saveToLocalStorage(key: string, value: string): void {
+  try {
+    if (value && value.trim()) localStorage.setItem(key, value.trim());
+    else localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Get the first non-empty query param value from the provided keys.
+ */
+function getFirstQueryParam(...keys: string[]): string | undefined {
+  try {
+    const usp = new URLSearchParams(window.location.search);
+    for (const k of keys) {
+      const v = usp.get(k);
+      if (v && v.trim()) return v.trim();
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
 }
 
 /**
@@ -61,13 +105,27 @@ export default function BulkUploader<T extends Record<string, any>>({
 }: Props<T>): JSX.Element {
   /** 
    * BulkUploader provides a11y-friendly CSV/XLSX upload with client-side validation,
-   * server POST to /{resources|costs}/bulk, and row-level error display.
+   * server POST to /{resources|costs}/bulk, and row-level error display. It:
+   * - Prefills Organization/Account from query (?org / ?organization_id, ?account / ?account_id) or localStorage
+   * - Attaches Authorization header via the configured HTTP client
+   * - Merges client + server row errors
+   * - Notifies parent to refresh data on successful upload (inserted or updated > 0)
    */
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
 
-  const [orgId, setOrgId] = useState<string>(defaultOrgId);
-  const [accountId, setAccountId] = useState<string>(defaultAccountId);
+  // Resolve initial org/account from query -> localStorage -> defaults
+  const initialOrg = useMemo(
+    () => getFirstQueryParam('org', 'organization_id') ?? readFromLocalStorage(ORG_KEY) ?? defaultOrgId,
+    [defaultOrgId]
+  );
+  const initialAccount = useMemo(
+    () => getFirstQueryParam('account', 'account_id') ?? readFromLocalStorage(ACCOUNT_KEY) ?? defaultAccountId,
+    [defaultAccountId]
+  );
+
+  const [orgId, setOrgId] = useState<string>(initialOrg);
+  const [accountId, setAccountId] = useState<string>(initialAccount);
 
   const [parsing, setParsing] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
@@ -82,6 +140,14 @@ export default function BulkUploader<T extends Record<string, any>>({
   const totalRows = clientValid.length + clientErrors.length;
 
   const mergedErrors = useMemo(() => mergeRowErrors(clientErrors, serverErrors), [clientErrors, serverErrors]);
+
+  // Persist org/account for convenience
+  useEffect(() => {
+    saveToLocalStorage(ORG_KEY, orgId);
+  }, [orgId]);
+  useEffect(() => {
+    saveToLocalStorage(ACCOUNT_KEY, accountId);
+  }, [accountId]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -136,11 +202,26 @@ export default function BulkUploader<T extends Record<string, any>>({
       };
       const res = await postBulk(payload);
       setServerResult(res);
-      const srvErrors: RowError[] = (res.errors || []).map(e => ({ rowNumber: e.rowNumber, errors: e.errors }));
+
+      // Be resilient to server schema variations (rowNumber vs row_number, errors vs messages).
+      const srvErrors: RowError[] = (res?.errors || []).map((e: any) => {
+        const rnRaw = e?.rowNumber ?? e?.row_number ?? e?.row ?? 0;
+        const rn = typeof rnRaw === 'number' ? rnRaw : Number(rnRaw) || 0;
+        const msgsRaw = e?.errors ?? e?.messages ?? [];
+        const msgs = Array.isArray(msgsRaw) ? msgsRaw : [msgsRaw];
+        const cleanMsgs = msgs.map((m) => String(m)).filter(Boolean);
+        return { rowNumber: rn, errors: cleanMsgs };
+      });
       setServerErrors(srvErrors);
-      if (onUploaded) onUploaded();
+
+      // Refresh parent views only on success (inserted or updated > 0)
+      const inserted = (res as any)?.inserted ?? 0;
+      const updated = (res as any)?.updated ?? 0;
+      if ((inserted + updated) > 0 && onUploaded) onUploaded();
     } catch (err: any) {
-      setError(err?.message || 'Upload failed. Please try again.');
+      const msg = String(err?.message || '');
+      // Simplify common auth failure message for users
+      setError(msg.includes('401') ? 'Not authorized. Please sign in again.' : (msg || 'Upload failed. Please try again.'));
     } finally {
       setUploading(false);
     }
@@ -148,18 +229,22 @@ export default function BulkUploader<T extends Record<string, any>>({
 
   const canUpload = orgId.trim().length > 0 && clientValid.length > 0 && !parsing && !uploading;
 
-  const title = kind === 'resources' ? 'Resource upload' : 'Cost upload';
-  const helper = kind === 'resources'
-    ? 'Upload a CSV/XLSX with resource inventory. Client-side validation will run before sending valid rows to the server.'
-    : 'Upload a CSV/XLSX with cost records. Client-side validation will run before sending valid rows to the server.';
+  const title = kind === 'resources' ? 'Bulk upload — Resources' : 'Bulk upload — Costs';
+  const endpointPath = kind === 'resources' ? '/resources/bulk' : '/costs/bulk';
+  const helper =
+    kind === 'resources'
+      ? 'Upload a .csv or .xlsx file with resource inventory. Only valid rows are sent; invalid rows are highlighted below.'
+      : 'Upload a .csv or .xlsx file with cost records. Only valid rows are sent; invalid rows are highlighted below.';
 
   return (
     <section role="region" aria-label={`${title} section`} style={{ marginBottom: 16 }}>
       <h2 style={{ margin: '8px 0' }}>{title}</h2>
-      <p className="description">{helper}</p>
+      <p className="description">
+        {helper} Your Authorization token is attached automatically. Server endpoint: <code title="Upload endpoint">{endpointPath}</code>.
+      </p>
 
       <form className="form" aria-label={`${title} form`} onSubmit={(e) => e.preventDefault()}>
-        <label>
+        <label title="Organization scope for the upload">
           <span>Organization ID</span>
           <input
             type="text"
@@ -167,17 +252,25 @@ export default function BulkUploader<T extends Record<string, any>>({
             onChange={(e) => setOrgId(e.target.value)}
             required
             aria-required="true"
+            aria-describedby="org-help"
+            placeholder="e.g. org-1234"
           />
+          <small id="org-help" className="description">
+            Required. We’ll remember your last value on this device. You can also use the URL parameter ?org=ID.
+          </small>
         </label>
-        <label>
+        <label title="Optional cloud account for scoping">
           <span>Cloud Account ID (optional)</span>
           <input
             type="text"
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
             aria-describedby="account-help"
+            placeholder="e.g. 123456789012"
           />
-          <small id="account-help" className="description">If provided, rows will be associated with this account.</small>
+          <small id="account-help" className="description">
+            If provided, rows will be associated with this account. URL parameters ?account=ID or ?account_id=ID are also supported.
+          </small>
         </label>
 
         <label>
@@ -192,7 +285,7 @@ export default function BulkUploader<T extends Record<string, any>>({
             disabled={uploading}
           />
           <small id="file-help" className="description">
-            Maximize quality by including headers like resource_id, provider, region, state, etc.
+            Header names are normalized (e.g., Resource ID → resource_id). Include columns like resource_id, provider, region, state, etc.
           </small>
         </label>
 
@@ -203,6 +296,7 @@ export default function BulkUploader<T extends Record<string, any>>({
             onClick={onUpload}
             disabled={!canUpload}
             aria-disabled={!canUpload}
+            title={`POST ${endpointPath}`}
           >
             {uploading ? 'Uploading…' : clientValid.length > 0 ? `Upload ${clientValid.length} valid row(s)` : 'Upload'}
           </button>
@@ -238,9 +332,9 @@ export default function BulkUploader<T extends Record<string, any>>({
           {serverResult && (
             <>
               <div className="cost-summary-title" style={{ marginTop: 8 }}>Server response</div>
-              <div>
-                Inserted: <strong>{serverResult.inserted}</strong> • Updated: <strong>{serverResult.updated}</strong> • Rejected:{' '}
-                <strong>{serverResult.invalid}</strong>
+              <div aria-live="polite">
+                Inserted: <strong>{serverResult.inserted ?? 0}</strong> • Updated: <strong>{serverResult.updated ?? 0}</strong> • Rejected:{' '}
+                <strong>{serverResult.invalid ?? 0}</strong>
               </div>
               {serverResult.message && (
                 <div className="description" aria-live="polite" style={{ marginTop: 4 }}>
@@ -269,6 +363,10 @@ export default function BulkUploader<T extends Record<string, any>>({
           </details>
         </section>
       )}
+
+      <p className="description" style={{ marginTop: 8 }}>
+        Tip: Authorization header is automatically added from your signed-in session. We merge client and server row errors to help you fix issues quickly.
+      </p>
     </section>
   );
 }
