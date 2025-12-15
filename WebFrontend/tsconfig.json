@@ -15,5 +15,6 @@
     "esModuleInterop": true,
     "baseUrl": "./src"
   },
-  "include": ["src", "vite.config.ts", "index.html"]
+  "include": ["src", "vite.config.ts", "index.html"],
+  "exclude": ["src/**/*.test.ts", "src/**/__tests__/**"]
 }
