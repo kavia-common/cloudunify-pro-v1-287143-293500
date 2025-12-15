@@ -17,15 +17,21 @@ export default function Login(): JSX.Element {
   const [password, setPassword] = useState<string>('');
   const [remember, setRemember] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
 
+  const isValid = Boolean(email && password);
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValid || loading) return;
     setError('');
+    setLoading(true);
     try {
       await login({ email, password }, remember);
       navigate(fromPath, { replace: true });
     } catch (err: any) {
       setError(err?.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,8 +79,14 @@ export default function Login(): JSX.Element {
           <small id="remember-help" className="description">
             Store tokens in localStorage for persistent sessions (device-level).
           </small>
-          {error && <div role="alert" style={{ color: 'crimson' }}>{error}</div>}
-          <button type="submit" className="btn btn-primary">Sign in</button>
+          {error && (
+            <div role="alert" aria-live="assertive" style={{ color: 'crimson' }}>
+              {error}
+            </div>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={!isValid || loading}>
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
         </form>
       )}
     </section>
