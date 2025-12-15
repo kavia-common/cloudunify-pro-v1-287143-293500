@@ -34,13 +34,15 @@ export default function App(): JSX.Element {
 
       {/* Protected application shell with nested routes */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route path="/app" element={<Dashboard />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/resources" element={<Resources />} />
-        <Route path="/costs" element={<Costs />} />
-        <Route path="/recommendations" element={<Recommendations />} />
-        <Route path="/automation" element={<Automation />} />
-        <Route path="/activity" element={<Activity />} />
+        {/* Use relative child paths so they mount under the layout and support SPA refresh */}
+        <Route path="app" element={<Dashboard />} />
+        <Route path="app/*" element={<Dashboard />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="resources" element={<Resources />} />
+        <Route path="costs" element={<Costs />} />
+        <Route path="recommendations" element={<Recommendations />} />
+        <Route path="automation" element={<Automation />} />
+        <Route path="activity" element={<Activity />} />
       </Route>
 
       {/* Legacy/alias handling */}
