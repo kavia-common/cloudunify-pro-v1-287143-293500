@@ -9,19 +9,58 @@ import Recommendations from './pages/Recommendations';
 import Automation from './pages/Automation';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
+import ProtectedRoute from './components/ProtectedRoute';
+import RoleGuard from './components/RoleGuard';
 
 // PUBLIC_INTERFACE
 export default function App(): JSX.Element {
-  /** App component defining the application routes and layout structure. */
+  /** App component defining the application routes and layout structure, with route guards. */
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/resources" element={<Resources />} />
-        <Route path="/costs" element={<Costs />} />
-        <Route path="/recommendations" element={<Recommendations />} />
-        <Route path="/automation" element={<Automation />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resources"
+          element={
+            <ProtectedRoute>
+              <Resources />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/costs"
+          element={
+            <ProtectedRoute>
+              <Costs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recommendations"
+          element={
+            <ProtectedRoute>
+              <Recommendations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/automation"
+          element={
+            <ProtectedRoute>
+              <RoleGuard allowed={['admin']} fallbackPath="/dashboard">
+                <Automation />
+              </RoleGuard>
+            </ProtectedRoute>
+          }
+        />
         <Route path="/login" element={<Login />} />
         <Route path="/home" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />

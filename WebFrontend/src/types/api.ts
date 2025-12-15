@@ -1,4 +1,5 @@
 export type Provider = 'aws' | 'azure' | 'gcp';
+export type Role = 'admin' | 'user' | 'viewer';
 
 export interface ErrorResponse {
   error_code?: string;
@@ -6,17 +7,25 @@ export interface ErrorResponse {
   details?: Record<string, unknown>;
 }
 
+// PUBLIC_INTERFACE
 export interface LoginRequest {
+  /** Email address used to sign in */
   email: string;
+  /** Password */
   password: string;
 }
 
+// PUBLIC_INTERFACE
 export interface LoginResponse {
+  /** Short-lived access token (JWT) */
   access_token: string;
+  /** Long-lived refresh token (JWT or opaque) */
   refresh_token: string;
+  /** Token type, e.g., "bearer" */
   token_type: string;
 }
 
+// PUBLIC_INTERFACE
 export interface Resource {
   id: string;
   resource_id: string;
@@ -30,6 +39,7 @@ export interface Resource {
   created_at: string;
 }
 
+// PUBLIC_INTERFACE
 export interface ResourceListResponse {
   items: Resource[];
   total: number;
@@ -37,6 +47,7 @@ export interface ResourceListResponse {
   size: number;
 }
 
+// PUBLIC_INTERFACE
 export interface CostSummary {
   total_cost: number;
   by_provider: Record<string, number>;
@@ -44,6 +55,7 @@ export interface CostSummary {
   period: string;
 }
 
+// PUBLIC_INTERFACE
 export interface Recommendation {
   id: string;
   resource_id: string;
@@ -55,6 +67,7 @@ export interface Recommendation {
   created_at: string;
 }
 
+// PUBLIC_INTERFACE
 export interface AutomationRule {
   id: string;
   name: string;

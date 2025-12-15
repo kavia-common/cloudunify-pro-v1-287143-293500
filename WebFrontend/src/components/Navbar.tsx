@@ -1,5 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../store/auth';
 
 type Props = {
   theme: 'light' | 'dark';
@@ -8,7 +9,15 @@ type Props = {
 
 // PUBLIC_INTERFACE
 export default function Navbar({ theme, onToggleTheme }: Props): JSX.Element {
-  /** Accessible top navigation bar with product title and theme toggle control. */
+  /** Accessible top navigation bar with product title, theme toggle, and auth actions. */
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/', { replace: true });
+  };
+
   return (
     <header className="navbar" role="banner">
       <div className="navbar-left">
@@ -26,9 +35,15 @@ export default function Navbar({ theme, onToggleTheme }: Props): JSX.Element {
         >
           {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
         </button>
-        <Link to="/login" className="btn btn-secondary" aria-label="Sign in">
-          Sign in
-        </Link>
+        {isAuthenticated ? (
+          <button type="button" className="btn btn-secondary" onClick={handleLogout} aria-label="Sign out">
+            Sign out
+          </button>
+        ) : (
+          <Link to="/login" className="btn btn-secondary" aria-label="Sign in">
+            Sign in
+          </Link>
+        )}
       </nav>
     </header>
   );
