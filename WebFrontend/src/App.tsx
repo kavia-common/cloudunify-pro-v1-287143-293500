@@ -7,44 +7,44 @@ import Costs from './pages/Costs';
 import Recommendations from './pages/Recommendations';
 import Automation from './pages/Automation';
 import Activity from './pages/Activity';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
+// NOTE: Auth is temporarily disabled; keep these imports commented to avoid unused warnings.
+// TODO(auth): Re-enable Login/Signup routes and imports when auth is turned back on.
+// import Login from './pages/Login';
+// import Signup from './pages/Signup';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
-import { useAuth } from './store/auth';
 
 /**
- * Route that decides the default landing based on authentication state.
- * Unauthenticated -> /login; Authenticated -> /app
+ * TODO(auth): Restore auth-driven landing:
+ * - Unauthenticated -> /login
+ * - Authenticated -> /app (or /dashboard)
+ *
+ * For now, we bypass auth entirely and land on /dashboard.
  */
-function AuthIndex(): JSX.Element {
-  const { isAuthenticated, isAuthInitializing } = useAuth();
-
-  if (isAuthInitializing) {
-    return (
-      <div style={{ padding: 24 }} role="status" aria-live="polite">
-        Loading…
-      </div>
-    );
-  }
-
-  return <Navigate to={isAuthenticated ? '/app' : '/login'} replace />;
+function AuthDisabledIndex(): JSX.Element {
+  return <Navigate to="/dashboard" replace />;
 }
 
 // PUBLIC_INTERFACE
 export default function App(): JSX.Element {
-  /** App component defining the application routes and layout structure, with route guards. */
+  /** App component defining the application routes and layout structure. Auth is temporarily bypassed. */
   return (
     <Routes>
-      {/* Default landing based on auth */}
-      <Route path="/" element={<AuthIndex />} />
+      {/* Default landing while auth is disabled */}
+      <Route path="/" element={<AuthDisabledIndex />} />
 
-      {/* Public routes (standalone, no shell layout) */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      {/* TODO(auth): Re-enable these public auth routes later (components are kept in src/pages). */}
+      {/* <Route path="/login" element={<Login />} /> */}
+      {/* <Route path="/signup" element={<Signup />} /> */}
 
-      {/* Protected application shell with nested routes */}
-      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+      {/* Application shell with nested routes. ProtectedRoute is currently a no-op passthrough. */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         {/* Use relative child paths so they mount under the layout and support SPA refresh */}
         <Route path="app" element={<Dashboard />} />
         <Route path="app/*" element={<Dashboard />} />

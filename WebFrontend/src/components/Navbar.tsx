@@ -1,26 +1,19 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../store/auth';
+import { Link } from 'react-router-dom';
 
 type Props = {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 };
 
+/**
+ * TODO(auth): Restore auth-aware navbar actions (sign in/sign out, user display)
+ * once authentication is re-enabled.
+ */
+
 // PUBLIC_INTERFACE
 export default function Navbar({ theme, onToggleTheme }: Props): JSX.Element {
-  /** Accessible top navigation bar with product title, theme toggle, and auth actions. */
-  const { isAuthenticated, logout, user, roles } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
-
-  const displayName = user?.email || user?.username || user?.sub || 'User';
-  const roleLabel = roles?.length ? `(${roles.join(', ')})` : '';
-
+  /** Accessible top navigation bar with product title and theme toggle. Auth UI is temporarily disabled. */
   return (
     <header className="navbar" role="banner">
       <div className="navbar-left">
@@ -28,6 +21,7 @@ export default function Navbar({ theme, onToggleTheme }: Props): JSX.Element {
           <span className="brand-accent">Cloud</span>Unify Pro
         </Link>
       </div>
+
       <nav className="navbar-actions" aria-label="Top navigation">
         <button
           type="button"
@@ -38,25 +32,10 @@ export default function Navbar({ theme, onToggleTheme }: Props): JSX.Element {
         >
           {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
         </button>
-        {isAuthenticated ? (
-          <>
-            <span aria-live="polite" aria-label="Signed in user" style={{ fontWeight: 600 }}>
-              {displayName} {roleLabel}
-            </span>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleLogout}
-              aria-label="Sign out"
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <Link to="/login" className="btn btn-secondary" aria-label="Sign in">
-            Sign in
-          </Link>
-        )}
+
+        <span className="description" aria-label="Authentication disabled notice">
+          TODO(auth): Sign-in disabled
+        </span>
       </nav>
     </header>
   );
