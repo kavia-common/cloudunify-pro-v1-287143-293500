@@ -166,7 +166,7 @@ export default function BulkUploader<T extends Record<string, any>>({
       const res = await parseFile(f);
       setClientValid(res.validRows);
       // Map ParseError to RowError {rowNumber, errors}
-      setClientErrors(res.invalidRows.map(ir => ({ rowNumber: ir.rowNumber, errors: ir.errors })));
+      setClientErrors(res.invalidRows.map((ir) => ({ rowNumber: ir.rowNumber, errors: ir.errors })));
     } catch (err: any) {
       setError(err?.message || 'Failed to parse file. Ensure it is a valid CSV or Excel file.');
       setClientValid([]);
@@ -354,7 +354,7 @@ export default function BulkUploader<T extends Record<string, any>>({
           <details>
             <summary>All row errors ({mergedErrors.length})</summary>
             <ul role="list" style={{ marginTop: 6 }}>
-              {mergedErrors.map((e, idx) => (
+              {mergedErrors.map((e: RowError, idx: number) => (
                 <li key={`all-${e.rowNumber}-${idx}`}>
                   Row {e.rowNumber}: {e.errors.join('; ')}
                 </li>

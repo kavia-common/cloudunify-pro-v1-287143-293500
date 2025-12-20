@@ -1,25 +1,26 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'node:fs';
 import path from 'node:path';
 
 // Create a simple health endpoint for both dev and preview to signal readiness.
 function healthPlugin() {
+  const handler = (_req: any, res: any) => {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('ok');
+  };
+
   return {
     name: 'health-endpoint',
     configureServer(server: any) {
-      server.middlewares.use('/health', (_req: any, res: any) => {
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/plain');
-        res.end('ok');
-      });
+      // Support both /health and /healthz (some preview/CI systems expect /healthz)
+      server.middlewares.use('/health', handler);
+      server.middlewares.use('/healthz', handler);
     },
     configurePreviewServer(server: any) {
-      server.middlewares.use('/health', (_req: any, res: any) => {
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/plain');
-        res.end('ok');
-      });
+      server.middlewares.use('/health', handler);
+      server.middlewares.use('/healthz', handler);
     }
   };
 }
@@ -54,7 +55,7 @@ function spaFallbackPlugin() {
 
     const url: string = req?.url || '/';
     // Keep healthcheck and API calls intact
-    if (url.startsWith('/health') || url.startsWith('/api/')) return false;
+    if (url.startsWith('/health') || url.startsWith('/healthz') || url.startsWith('/api/')) return false;
 
     if (isAssetPath(url)) return false;
 
@@ -106,33 +107,28 @@ function spaFallbackPlugin() {
   };
 }
 
-// Allow-list the reverse proxy hostname to avoid "blocked host" errors behind HTTPS proxying.
-const ALLOWED_HOSTS = ['vscode-internal-17021-beta.beta01.cloud.kavia.ai'];
-
-// Note: We cast to any to remain compatible with older Vite type definitions while
-// still enabling the runtime-supported `allowedHosts` option.
+// NOTE: In preview environments behind proxies, hostnames may vary. Allow all hosts to avoid
+// "Blocked request. This host is not allowed" issues.
 const devServer = {
   host: '0.0.0.0',
   port: 3000,
   strictPort: true,
   open: false,
-  allowedHosts: ALLOWED_HOSTS
+  allowedHosts: true
 } as any;
 
 const previewServer = {
   host: '0.0.0.0',
   port: 3000,
   strictPort: true,
-  allowedHosts: ALLOWED_HOSTS
+  allowedHosts: true
 } as any;
 
 // PUBLIC_INTERFACE
 export default defineConfig({
+  // Allow legacy CRA-style env vars in preview/CI while still preferring VITE_* in code.
+  envPrefix: ['VITE_', 'REACT_APP_'],
   plugins: [react(), healthPlugin(), spaFallbackPlugin()],
   server: devServer,
-  preview: previewServer,
-  test: {
-    environment: 'node',
-    include: ['src/lib/mapping/**/*.test.ts']
-  }
+  preview: previewServer
 });
