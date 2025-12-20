@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'node:fs';
@@ -130,5 +131,13 @@ export default defineConfig({
   envPrefix: ['VITE_', 'REACT_APP_'],
   plugins: [react(), healthPlugin(), spaFallbackPlugin()],
   server: devServer,
-  preview: previewServer
+  preview: previewServer,
+
+  // Vitest configuration:
+  // - jsdom provides localStorage/sessionStorage for auth hydration/storage tests
+  // - setupFiles loads jest-dom matchers used by setupTests.js
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/setupTests.js']
+  }
 });

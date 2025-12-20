@@ -3,6 +3,18 @@ import type { LoginRequest, Role } from '../types/api';
 import { apiClient } from '../lib/api/client';
 import { configureAuth } from '../lib/api/http';
 
+function debugAuthLog(...args: any[]): void {
+  try {
+    const lvl = (import.meta as any)?.env?.REACT_APP_LOG_LEVEL || (import.meta as any)?.env?.VITE_LOG_LEVEL;
+    if (String(lvl || '').toLowerCase() === 'debug') {
+      // eslint-disable-next-line no-console
+      console.log('[auth]', ...args);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export type AuthUser = {
   email?: string;
   username?: string;
@@ -238,6 +250,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     didInitRef.current = true;
 
     const stored = readStoredAuth();
+    debugAuthLog('hydrate', {
+      remember: stored.remember,
+      hasAccessToken: Boolean(stored.accessToken),
+      hasRefreshToken: Boolean(stored.refreshToken)
+    });
+
     setRemember(stored.remember);
     setAccessToken(stored.accessToken);
     setRefreshToken(stored.refreshToken);
@@ -267,10 +285,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     // Ensure response shape is correct; otherwise fail fast to avoid storing junk and looping.
     const at = (res as any)?.access_token;
     const rt = (res as any)?.refresh_token;
+    const tokenType = (res as any)?.token_type;
+
+    debugAuthLog('login response', {
+      hasAccessToken: typeof at === 'string',
+      hasRefreshToken: typeof rt === 'string',
+      tokenType
+    });
+
     if (typeof at !== 'string' || typeof rt !== 'string') {
       throw new Error('Login response missing access_token/refresh_token');
     }
+
     setAuthFromTokens(at, rt, rememberFlag);
+
+    debugAuthLog('stored tokens', {
+      remember: rememberFlag,
+      organizationId: extractOrganizationIdFromToken(at) ?? '(none)'
+    });
   };
 
   const logout = () => {
