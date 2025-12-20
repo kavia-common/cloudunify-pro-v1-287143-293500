@@ -138,6 +138,7 @@ export default defineConfig({
   // - setupFiles loads jest-dom matchers used by setupTests.js
   test: {
     environment: 'jsdom',
+    globals: true,
     setupFiles: ['./src/setupTests.js']
   }
 });

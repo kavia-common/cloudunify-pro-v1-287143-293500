@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getApiBase } from '../lib/env';
+import { getAppConfig } from '../lib/appConfig';
 import { clearFetchDebugStatuses, isFetchDebugEnabled, useFetchDebugStatuses } from '../lib/api/fetchDebug';
 
 // PUBLIC_INTERFACE
@@ -17,11 +17,8 @@ export default function FetchDebugBanner(): JSX.Element | null {
   const [expanded, setExpanded] = useState<boolean>(false);
 
   const apiBase = useMemo(() => {
-    try {
-      return getApiBase();
-    } catch (e: any) {
-      return `Error: ${String(e?.message || e)}`;
-    }
+    const cfg = getAppConfig();
+    return cfg.apiBase || '(missing)';
   }, []);
 
   const summary = useMemo(() => {
