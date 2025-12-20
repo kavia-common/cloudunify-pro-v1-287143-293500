@@ -15,6 +15,7 @@ type AuthContextType = {
   refreshToken: string | null;
   roles: Role[];
   user: AuthUser | null;
+  organizationId: string | null;
   remember: boolean;
   login: (payload: LoginRequest, remember?: boolean) => Promise<void>;
   logout: () => void;
@@ -70,6 +71,24 @@ function extractUserFromToken(token: string | null): AuthUser | null {
   return null;
 }
 
+function extractOrganizationIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload !== 'object') return null;
+
+  const raw =
+    payload.organization_id ??
+    payload.org_id ??
+    payload.organizationId ??
+    payload.organization ??
+    payload.tenant_id ??
+    payload.tenantId ??
+    null;
+
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  return null;
+}
+
 // PUBLIC_INTERFACE
 export function AuthProvider({ children }: { children: React.ReactNode }): JSX.Element {
   /**
@@ -95,6 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const [remember, setRemember] = useState<boolean>(initialRemember);
   const [roles, setRoles] = useState<Role[]>(() => extractRolesFromToken(accessToken));
   const [user, setUser] = useState<AuthUser | null>(() => extractUserFromToken(accessToken));
+  const [organizationId, setOrganizationId] = useState<string | null>(() =>
+    extractOrganizationIdFromToken(accessToken)
+  );
 
   const persistOrClear = (at: string | null, rt: string | null, persist: boolean) => {
     try {
@@ -120,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     setRefreshToken(res.refresh_token);
     setRoles(extractRolesFromToken(res.access_token));
     setUser(extractUserFromToken(res.access_token));
+    setOrganizationId(extractOrganizationIdFromToken(res.access_token));
     setRemember(rememberFlag);
     persistOrClear(res.access_token, res.refresh_token, rememberFlag);
   };
@@ -129,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     setRefreshToken(null);
     setRoles([]);
     setUser(null);
+    setOrganizationId(null);
     persistOrClear(null, null, false);
   };
 
@@ -140,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       setRefreshToken(res.refresh_token);
       setRoles(extractRolesFromToken(res.access_token));
       setUser(extractUserFromToken(res.access_token));
+      setOrganizationId(extractOrganizationIdFromToken(res.access_token));
       persistOrClear(res.access_token, res.refresh_token, remember);
       return true;
     } catch {
@@ -159,16 +184,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, refreshToken, remember]);
 
-  const value = useMemo<AuthContextType>(() => ({
-    isAuthenticated: Boolean(accessToken),
-    accessToken,
-    refreshToken,
-    roles,
-    user,
-    remember,
-    login,
-    logout
-  }), [accessToken, refreshToken, roles, user, remember]);
+  const value = useMemo<AuthContextType>(
+    () => ({
+      isAuthenticated: Boolean(accessToken),
+      accessToken,
+      refreshToken,
+      roles,
+      user,
+      organizationId,
+      remember,
+      login,
+      logout
+    }),
+    [accessToken, refreshToken, roles, user, organizationId, remember]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
