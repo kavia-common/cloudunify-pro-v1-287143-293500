@@ -146,6 +146,115 @@ body {
   padding: 20px 24px;
 }
 
+/* Dev-only fetch debug banner (see FetchDebugBanner.tsx) */
+.fetch-debug-banner {
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 14px 0;
+  background: var(--bg-secondary);
+}
+
+.fetch-debug-banner__top {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fetch-debug-banner__title {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.fetch-debug-banner__meta {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.fetch-debug-banner__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fetch-debug-banner__counts {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.fetch-debug-banner__body {
+  margin-top: 10px;
+}
+
+.fetch-debug-banner__empty {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.fetch-debug-banner__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.fetch-debug-banner__item {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  padding: 10px 12px;
+}
+
+.fetch-debug-banner__itemHeader {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.fetch-debug-banner__key {
+  font-weight: 800;
+}
+
+.fetch-debug-banner__when {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.fetch-debug-banner__url {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  margin-top: 6px;
+}
+
+.fetch-debug-banner__error {
+  margin-top: 8px;
+  color: #b91c1c;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.fetch-debug-banner__item--ok {
+  border-left: 4px solid #16a34a;
+}
+
+.fetch-debug-banner__item--pending {
+  border-left: 4px solid #f59e0b;
+}
+
+.fetch-debug-banner__item--error {
+  border-left: 4px solid #dc2626;
+}
+
 /* Typography */
 .title {
   font-size: 1.75rem;

@@ -49,11 +49,11 @@ export default function Dashboard(): JSX.Element {
         // Resource totals can be fetched without loading all items (use pagination totals).
         // Use "public" variants to avoid Authorization headers and to soft-handle 401 while auth is disabled.
         const [all, running, stopped, summary, recommendations] = await Promise.all([
-          apiClient().resources.listPublic({ page: 1, size: 1 }),
-          apiClient().resources.listPublic({ page: 1, size: 1, state: 'running' }),
-          apiClient().resources.listPublic({ page: 1, size: 1, state: 'stopped' }),
-          apiClient().costs.summaryPublic('monthly'),
-          apiClient().recommendations.listPublic()
+          apiClient().resources.listPublic({ page: 1, size: 1 }, { debugKey: 'dashboard.resources.all' }),
+          apiClient().resources.listPublic({ page: 1, size: 1, state: 'running' }, { debugKey: 'dashboard.resources.running' }),
+          apiClient().resources.listPublic({ page: 1, size: 1, state: 'stopped' }, { debugKey: 'dashboard.resources.stopped' }),
+          apiClient().costs.summaryPublic('monthly', { debugKey: 'dashboard.costs.summary' }),
+          apiClient().recommendations.listPublic({}, { debugKey: 'dashboard.recommendations.list' })
         ]);
 
         if (cancelled) return;

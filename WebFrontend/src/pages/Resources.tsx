@@ -87,13 +87,16 @@ export default function Resources(): JSX.Element {
       setLoading(true);
       setError('');
       try {
-        const res: ResourceListResponse = await apiClient().resources.listPublic({
-          provider: filters.provider || undefined,
-          region: filters.region || undefined,
-          state: filters.state || undefined,
-          page,
-          size
-        });
+        const res: ResourceListResponse = await apiClient().resources.listPublic(
+          {
+            provider: filters.provider || undefined,
+            region: filters.region || undefined,
+            state: filters.state || undefined,
+            page,
+            size
+          },
+          { debugKey: 'resources.list' }
+        );
 
         if (!cancelled) {
           setRows(Array.isArray(res.items) ? res.items : []);

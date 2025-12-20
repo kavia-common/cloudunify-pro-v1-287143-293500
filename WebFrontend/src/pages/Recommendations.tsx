@@ -53,7 +53,10 @@ export default function Recommendations(): JSX.Element {
       setLoading(true);
       setError('');
       try {
-        const data = await apiClient().recommendations.listPublic({ priority: priority || undefined });
+        const data = await apiClient().recommendations.listPublic(
+          { priority: priority || undefined },
+          { debugKey: 'recommendations.list' }
+        );
         if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch (err: any) {
         // listPublic returns defaults on most failures; keep catch as a last-resort safety net.

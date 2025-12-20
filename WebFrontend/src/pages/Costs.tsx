@@ -32,7 +32,7 @@ export default function Costs(): JSX.Element {
       setLoading(true);
       setError('');
       try {
-        const data = await apiClient().costs.summaryPublic(period);
+        const data = await apiClient().costs.summaryPublic(period, { debugKey: 'costs.summary' });
         if (!cancelled) setSummary(data);
       } catch (err: any) {
         // summaryPublic returns defaults on most failures; keep catch as a last-resort safety net.
