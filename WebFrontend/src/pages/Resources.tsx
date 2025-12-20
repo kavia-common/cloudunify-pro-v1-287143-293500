@@ -87,18 +87,20 @@ export default function Resources(): JSX.Element {
       setLoading(true);
       setError('');
       try {
-        const res: ResourceListResponse = await apiClient().resources.list({
+        const res: ResourceListResponse = await apiClient().resources.listPublic({
           provider: filters.provider || undefined,
           region: filters.region || undefined,
           state: filters.state || undefined,
           page,
           size
         });
+
         if (!cancelled) {
-          setRows(res.items);
-          setTotal(res.total);
+          setRows(Array.isArray(res.items) ? res.items : []);
+          setTotal(Number(res.total ?? 0));
         }
       } catch (err: any) {
+        // listPublic normally returns safe defaults; keep catch as a last-resort safety net.
         if (!cancelled) setError(err?.message || 'Failed to load resources');
       } finally {
         if (!cancelled) setLoading(false);

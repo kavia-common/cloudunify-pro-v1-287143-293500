@@ -53,9 +53,10 @@ export default function Recommendations(): JSX.Element {
       setLoading(true);
       setError('');
       try {
-        const data = await apiClient().recommendations.list({ priority: priority || undefined });
-        if (!cancelled) setRows(data);
+        const data = await apiClient().recommendations.listPublic({ priority: priority || undefined });
+        if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch (err: any) {
+        // listPublic returns defaults on most failures; keep catch as a last-resort safety net.
         if (!cancelled) setError(err?.message || 'Failed to load recommendations');
       } finally {
         if (!cancelled) setLoading(false);

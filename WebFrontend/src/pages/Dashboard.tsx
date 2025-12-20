@@ -47,12 +47,13 @@ export default function Dashboard(): JSX.Element {
 
       try {
         // Resource totals can be fetched without loading all items (use pagination totals).
+        // Use "public" variants to avoid Authorization headers and to soft-handle 401 while auth is disabled.
         const [all, running, stopped, summary, recommendations] = await Promise.all([
-          apiClient().resources.list({ page: 1, size: 1 }),
-          apiClient().resources.list({ page: 1, size: 1, state: 'running' }),
-          apiClient().resources.list({ page: 1, size: 1, state: 'stopped' }),
-          apiClient().costs.summary('monthly'),
-          apiClient().recommendations.list()
+          apiClient().resources.listPublic({ page: 1, size: 1 }),
+          apiClient().resources.listPublic({ page: 1, size: 1, state: 'running' }),
+          apiClient().resources.listPublic({ page: 1, size: 1, state: 'stopped' }),
+          apiClient().costs.summaryPublic('monthly'),
+          apiClient().recommendations.listPublic()
         ]);
 
         if (cancelled) return;
@@ -67,15 +68,13 @@ export default function Dashboard(): JSX.Element {
         setRecs(Array.isArray(recommendations) ? recommendations : []);
         setLastUpdated(new Date().toLocaleString());
       } catch (err: any) {
+        // This catch is now primarily for unexpected runtime issues, because the client methods
+        // return safe defaults on 401/transient network failures.
         const status = err?.status as number | undefined;
 
-        // While auth is disabled, the backend may still respond 401 for endpoints that normally require JWT.
-        // We intentionally avoid showing "Not authenticated" UI on the Dashboard in this mode.
-        //
-        // TODO(auth): Restore explicit 401 handling (banner + redirect to /login) once auth is re-enabled.
         if (status === 401 && isAuthDisabled()) {
+          // Keep dashboard usable with empty data; do not show auth error UX.
           if (!cancelled) {
-            // Keep the dashboard usable with empty/placeholder data rather than a scary auth error.
             setCounts({ total: 0, running: 0, stopped: 0 });
             setCostSummary({ total_cost: 0, by_provider: {}, by_region: {}, period: 'monthly' } as any);
             setRecs([]);
