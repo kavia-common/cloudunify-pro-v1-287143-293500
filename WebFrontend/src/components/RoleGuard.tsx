@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { isAuthDisabled } from '../lib/authMode';
 import { useAuth } from '../store/auth';
 import type { Role } from '../types/api';
 
@@ -16,6 +17,14 @@ export default function RoleGuard({ allowed, children, fallbackPath = '/' }: Pro
    * Requires an authenticated user; redirects to /login if not authenticated, or
    * to the provided fallbackPath if authenticated but lacking a required role.
    */
+  // Auth is currently bypassed across the app; RoleGuard must also be a no-op to prevent
+  // redirects/unauthenticated placeholders.
+  //
+  // TODO(auth): Restore role-based gating and redirects when auth is re-enabled.
+  if (isAuthDisabled()) {
+    return <>{children}</>;
+  }
+
   const { isAuthenticated, roles } = useAuth();
 
   if (!isAuthenticated) {

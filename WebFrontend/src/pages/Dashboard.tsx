@@ -3,6 +3,7 @@ import ActivityStream from '../components/ActivityStream';
 import { BarChart } from '../components/Chart';
 import DataTable, { Column } from '../components/DataTable';
 import { apiClient } from '../lib/api/client';
+import { isAuthDisabled } from '../lib/authMode';
 import { useAuth } from '../store/auth';
 import type { CostSummary, Recommendation } from '../types/api';
 
@@ -66,7 +67,24 @@ export default function Dashboard(): JSX.Element {
         setRecs(Array.isArray(recommendations) ? recommendations : []);
         setLastUpdated(new Date().toLocaleString());
       } catch (err: any) {
-        if (!cancelled) setError(err?.message || 'Failed to load dashboard data');
+        const status = err?.status as number | undefined;
+
+        // While auth is disabled, the backend may still respond 401 for endpoints that normally require JWT.
+        // We intentionally avoid showing "Not authenticated" UI on the Dashboard in this mode.
+        //
+        // TODO(auth): Restore explicit 401 handling (banner + redirect to /login) once auth is re-enabled.
+        if (status === 401 && isAuthDisabled()) {
+          if (!cancelled) {
+            // Keep the dashboard usable with empty/placeholder data rather than a scary auth error.
+            setCounts({ total: 0, running: 0, stopped: 0 });
+            setCostSummary({ total_cost: 0, by_provider: {}, by_region: {}, period: 'monthly' } as any);
+            setRecs([]);
+            setError('');
+            setLastUpdated(new Date().toLocaleString());
+          }
+        } else {
+          if (!cancelled) setError(err?.message || 'Failed to load dashboard data');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

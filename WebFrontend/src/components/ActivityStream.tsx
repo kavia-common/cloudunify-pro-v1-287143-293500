@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../lib/api/client';
+import { isAuthDisabled } from '../lib/authMode';
 import { useAuth } from '../store/auth';
 
 type ActivityEvent = {
@@ -29,6 +30,7 @@ export default function ActivityStream({
    * - Includes a Pause updates toggle that buffers events while paused
    */
   const { accessToken, isAuthenticated } = useAuth();
+  const authDisabled = isAuthDisabled();
   const [organizationId, setOrganizationId] = useState<string>(defaultOrganizationId || '');
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
@@ -81,6 +83,12 @@ export default function ActivityStream({
   };
 
   const connect = () => {
+    // When auth is disabled, we also disable the authenticated activity stream to avoid
+    // repeated 401/WS auth noise and "Not authenticated" UX.
+    //
+    // TODO(auth): Re-enable WebSocket activity stream connection and token query param when auth is restored.
+    if (authDisabled) return;
+
     if (!isAuthenticated || !accessToken || !wsUrl) return;
 
     try {
@@ -152,71 +160,83 @@ export default function ActivityStream({
         </div>
       </div>
 
-      <form className="panel-controls" aria-label="Activity stream controls" onSubmit={(e) => e.preventDefault()}>
-        <label className="control">
-          <span>Organization ID</span>
-          <input
-            type="text"
-            value={organizationId}
-            onChange={(e) => setOrganizationId(e.target.value)}
-            placeholder="org-uuid"
-            aria-label="Organization ID"
-          />
-        </label>
-
-        <div className="control-row">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={connect}
-            disabled={!canConnect || status === 'connected' || status === 'connecting'}
-            aria-disabled={!canConnect || status === 'connected' || status === 'connecting'}
-          >
-            {status === 'connecting' ? 'Connecting…' : 'Connect'}
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={disconnect}
-            disabled={status !== 'connected' && status !== 'connecting'}
-            aria-disabled={status !== 'connected' && status !== 'connecting'}
-          >
-            Disconnect
-          </button>
-
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={paused}
-              onChange={(e) => setPaused(e.target.checked)}
-              aria-label="Pause updates"
-            />
-            <span>Pause updates</span>
-          </label>
-        </div>
-      </form>
-
-      <div className="activity-list" role="region" aria-label="Activity stream events" tabIndex={0}>
-        {events.length === 0 ? (
+      {authDisabled ? (
+        <div className="activity-list" role="region" aria-label="Activity stream disabled" tabIndex={0}>
           <p className="description" style={{ padding: 12 }}>
-            {status === 'connected' ? 'Connected. Waiting for events…' : 'Not connected. Enter an Organization ID and connect.'}
+            Activity stream is temporarily disabled while authentication is bypassed.
           </p>
-        ) : (
-          <ul role="list" className="activity-ul">
-            {events.map((ev) => (
-              <li key={ev.id} className="activity-item">
-                <div className="activity-item-top">
-                  <time dateTime={ev.timestamp} className="activity-time">
-                    {new Date(ev.timestamp).toLocaleString()}
-                  </time>
-                </div>
-                <pre className="activity-message">{ev.message}</pre>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <form className="panel-controls" aria-label="Activity stream controls" onSubmit={(e) => e.preventDefault()}>
+            <label className="control">
+              <span>Organization ID</span>
+              <input
+                type="text"
+                value={organizationId}
+                onChange={(e) => setOrganizationId(e.target.value)}
+                placeholder="org-uuid"
+                aria-label="Organization ID"
+              />
+            </label>
+
+            <div className="control-row">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={connect}
+                disabled={!canConnect || status === 'connected' || status === 'connecting'}
+                aria-disabled={!canConnect || status === 'connected' || status === 'connecting'}
+              >
+                {status === 'connecting' ? 'Connecting…' : 'Connect'}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={disconnect}
+                disabled={status !== 'connected' && status !== 'connecting'}
+                aria-disabled={status !== 'connected' && status !== 'connecting'}
+              >
+                Disconnect
+              </button>
+
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={paused}
+                  onChange={(e) => setPaused(e.target.checked)}
+                  aria-label="Pause updates"
+                />
+                <span>Pause updates</span>
+              </label>
+            </div>
+          </form>
+
+          <div className="activity-list" role="region" aria-label="Activity stream events" tabIndex={0}>
+            {events.length === 0 ? (
+              <p className="description" style={{ padding: 12 }}>
+                {status === 'connected'
+                  ? 'Connected. Waiting for events…'
+                  : 'Not connected. Enter an Organization ID and connect.'}
+              </p>
+            ) : (
+              <ul role="list" className="activity-ul">
+                {events.map((ev) => (
+                  <li key={ev.id} className="activity-item">
+                    <div className="activity-item-top">
+                      <time dateTime={ev.timestamp} className="activity-time">
+                        {new Date(ev.timestamp).toLocaleString()}
+                      </time>
+                    </div>
+                    <pre className="activity-message">{ev.message}</pre>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }
