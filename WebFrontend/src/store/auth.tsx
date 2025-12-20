@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { LoginRequest, Role } from '../types/api';
 import { apiClient } from '../lib/api/client';
 import { configureAuth } from '../lib/api/http';
@@ -11,6 +11,11 @@ export type AuthUser = {
 
 type AuthContextType = {
   isAuthenticated: boolean;
+  /**
+   * True while the provider is hydrating tokens from storage and wiring the HTTP client.
+   * Route guards should not redirect while this is true to avoid redirect loops/race conditions.
+   */
+  isAuthInitializing: boolean;
   accessToken: string | null;
   refreshToken: string | null;
   roles: Role[];
@@ -23,9 +28,25 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Storage keys are intentionally short and stable, because other parts of the app may read them.
+ * Do not change without a migration.
+ */
 const AT_KEY = 'cup_at';
 const RT_KEY = 'cup_rt';
 const PERSIST_KEY = 'cup_persist';
+
+/** Allow small clock skew between client and server (seconds). */
+const CLOCK_SKEW_SECONDS = 60;
+
+function safeJsonParse(raw: string | null): any | null {
+  try {
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 function decodeJwtPayload(token: string): any | null {
   try {
@@ -40,6 +61,29 @@ function decodeJwtPayload(token: string): any | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Validate basic JWT time claims with skew tolerance.
+ * Returns false if token is clearly not usable.
+ */
+function isJwtUsable(token: string | null): boolean {
+  if (!token) return false;
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload !== 'object') return false;
+
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  const exp = typeof payload.exp === 'number' ? payload.exp : undefined;
+  // Some JWT libs set iat/nbf; tolerate small skew
+  const nbf = typeof payload.nbf === 'number' ? payload.nbf : undefined;
+  const iat = typeof payload.iat === 'number' ? payload.iat : undefined;
+
+  if (exp !== undefined && nowSec > exp + CLOCK_SKEW_SECONDS) return false;
+  if (nbf !== undefined && nowSec + CLOCK_SKEW_SECONDS < nbf) return false;
+  if (iat !== undefined && nowSec + CLOCK_SKEW_SECONDS < iat) return false;
+
+  return true;
 }
 
 function extractRolesFromToken(token: string | null): Role[] {
@@ -89,83 +133,159 @@ function extractOrganizationIdFromToken(token: string | null): string | null {
   return null;
 }
 
+type StoredAuth = {
+  accessToken: string | null;
+  refreshToken: string | null;
+  remember: boolean;
+};
+
+function readStoredAuth(): StoredAuth {
+  // Prefer persisted preference, defaulting to false
+  let remember = false;
+  try {
+    remember = localStorage.getItem(PERSIST_KEY) === 'true';
+  } catch {
+    remember = false;
+  }
+
+  // If remember=true, read from localStorage; otherwise use sessionStorage.
+  // This ensures non-remember sessions survive in-tab navigation, and avoids redirect loops.
+  const storage: Storage | null = (() => {
+    try {
+      return remember ? localStorage : sessionStorage;
+    } catch {
+      return null;
+    }
+  })();
+
+  const at = storage?.getItem(AT_KEY) ?? null;
+  const rt = storage?.getItem(RT_KEY) ?? null;
+
+  // If tokens are not usable, return empty.
+  if (at && !isJwtUsable(at)) {
+    return { accessToken: null, refreshToken: null, remember };
+  }
+  return { accessToken: at, refreshToken: rt, remember };
+}
+
+function writeStoredAuth(at: string | null, rt: string | null, remember: boolean): void {
+  // Always try to keep both storages consistent: local holds persisted, session holds ephemeral.
+  // When remember=true, write to local and clear session.
+  // When remember=false, write to session and clear local tokens.
+  try {
+    localStorage.setItem(PERSIST_KEY, remember ? 'true' : 'false');
+  } catch {
+    // ignore
+  }
+
+  const safeWrite = (st: Storage, key: string, val: string | null) => {
+    try {
+      if (val) st.setItem(key, val);
+      else st.removeItem(key);
+    } catch {
+      // ignore
+    }
+  };
+
+  try {
+    if (remember) {
+      safeWrite(localStorage, AT_KEY, at);
+      safeWrite(localStorage, RT_KEY, rt);
+      // Clear session copy to avoid stale mixing
+      safeWrite(sessionStorage, AT_KEY, null);
+      safeWrite(sessionStorage, RT_KEY, null);
+    } else {
+      safeWrite(sessionStorage, AT_KEY, at);
+      safeWrite(sessionStorage, RT_KEY, rt);
+      // Clear persisted tokens when user did not opt-in
+      safeWrite(localStorage, AT_KEY, null);
+      safeWrite(localStorage, RT_KEY, null);
+    }
+  } catch {
+    // ignore storage errors (e.g., private mode / disabled storage)
+  }
+}
+
 // PUBLIC_INTERFACE
 export function AuthProvider({ children }: { children: React.ReactNode }): JSX.Element {
   /**
    * Provides authentication state and actions to the React component tree.
-   * - Stores tokens in memory by default
-   * - Optional persistence to localStorage if user opts-in ("Remember me")
-   * - Integrates with HTTP client to attach tokens and handle refresh
+   *
+   * Key behaviors:
+   * - Tokens are stored in sessionStorage by default (per-tab session).
+   * - If user opts in via "Remember me", tokens are persisted in localStorage.
+   * - Auth is hydrated early on mount and guarded by `isAuthInitializing` to avoid redirect races.
    */
-  const initialRemember = (() => {
-    try {
-      return localStorage.getItem(PERSIST_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  })();
+  const [isAuthInitializing, setIsAuthInitializing] = useState<boolean>(true);
 
-  const [accessToken, setAccessToken] = useState<string | null>(() =>
-    initialRemember ? localStorage.getItem(AT_KEY) : null
-  );
-  const [refreshToken, setRefreshToken] = useState<string | null>(() =>
-    initialRemember ? localStorage.getItem(RT_KEY) : null
-  );
-  const [remember, setRemember] = useState<boolean>(initialRemember);
-  const [roles, setRoles] = useState<Role[]>(() => extractRolesFromToken(accessToken));
-  const [user, setUser] = useState<AuthUser | null>(() => extractUserFromToken(accessToken));
+  // Hydrate synchronously on first render to minimize redirect races
+  const initial = useMemo(() => readStoredAuth(), []);
+  const [remember, setRemember] = useState<boolean>(initial.remember);
+  const [accessToken, setAccessToken] = useState<string | null>(initial.accessToken);
+  const [refreshToken, setRefreshToken] = useState<string | null>(initial.refreshToken);
+
+  const [roles, setRoles] = useState<Role[]>(() => extractRolesFromToken(initial.accessToken));
+  const [user, setUser] = useState<AuthUser | null>(() => extractUserFromToken(initial.accessToken));
   const [organizationId, setOrganizationId] = useState<string | null>(() =>
-    extractOrganizationIdFromToken(accessToken)
+    extractOrganizationIdFromToken(initial.accessToken)
   );
 
-  const persistOrClear = (at: string | null, rt: string | null, persist: boolean) => {
-    try {
-      if (persist) {
-        if (at) localStorage.setItem(AT_KEY, at);
-        else localStorage.removeItem(AT_KEY);
-        if (rt) localStorage.setItem(RT_KEY, rt);
-        else localStorage.removeItem(RT_KEY);
-        localStorage.setItem(PERSIST_KEY, 'true');
-      } else {
-        localStorage.removeItem(AT_KEY);
-        localStorage.removeItem(RT_KEY);
-        localStorage.setItem(PERSIST_KEY, 'false');
-      }
-    } catch {
-      // ignore storage errors (e.g., private mode)
-    }
+  // Prevent double-initialize effects in StrictMode from causing flicker.
+  const didInitRef = useRef(false);
+
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
+    const stored = readStoredAuth();
+    setRemember(stored.remember);
+    setAccessToken(stored.accessToken);
+    setRefreshToken(stored.refreshToken);
+    setRoles(extractRolesFromToken(stored.accessToken));
+    setUser(extractUserFromToken(stored.accessToken));
+    setOrganizationId(extractOrganizationIdFromToken(stored.accessToken));
+    setIsAuthInitializing(false);
+  }, []);
+
+  const setAuthFromTokens = (at: string | null, rt: string | null, rememberFlag: boolean) => {
+    const usable = at ? isJwtUsable(at) : false;
+    const finalAt = usable ? at : null;
+
+    setAccessToken(finalAt);
+    setRefreshToken(rt);
+    setRemember(rememberFlag);
+    setRoles(extractRolesFromToken(finalAt));
+    setUser(extractUserFromToken(finalAt));
+    setOrganizationId(extractOrganizationIdFromToken(finalAt));
+
+    writeStoredAuth(finalAt, rt, rememberFlag);
   };
 
   const login = async (payload: LoginRequest, rememberFlag: boolean = false) => {
     const res = await apiClient().auth.login(payload);
-    setAccessToken(res.access_token);
-    setRefreshToken(res.refresh_token);
-    setRoles(extractRolesFromToken(res.access_token));
-    setUser(extractUserFromToken(res.access_token));
-    setOrganizationId(extractOrganizationIdFromToken(res.access_token));
-    setRemember(rememberFlag);
-    persistOrClear(res.access_token, res.refresh_token, rememberFlag);
+
+    // Ensure response shape is correct; otherwise fail fast to avoid storing junk and looping.
+    const at = (res as any)?.access_token;
+    const rt = (res as any)?.refresh_token;
+    if (typeof at !== 'string' || typeof rt !== 'string') {
+      throw new Error('Login response missing access_token/refresh_token');
+    }
+    setAuthFromTokens(at, rt, rememberFlag);
   };
 
   const logout = () => {
-    setAccessToken(null);
-    setRefreshToken(null);
-    setRoles([]);
-    setUser(null);
-    setOrganizationId(null);
-    persistOrClear(null, null, false);
+    setAuthFromTokens(null, null, false);
   };
 
   const refresh = async (): Promise<boolean> => {
     if (!refreshToken) return false;
     try {
       const res = await apiClient().auth.refresh(refreshToken);
-      setAccessToken(res.access_token);
-      setRefreshToken(res.refresh_token);
-      setRoles(extractRolesFromToken(res.access_token));
-      setUser(extractUserFromToken(res.access_token));
-      setOrganizationId(extractOrganizationIdFromToken(res.access_token));
-      persistOrClear(res.access_token, res.refresh_token, remember);
+      const at = (res as any)?.access_token;
+      const rt = (res as any)?.refresh_token;
+      if (typeof at !== 'string' || typeof rt !== 'string') return false;
+
+      setAuthFromTokens(at, rt, remember);
       return true;
     } catch {
       // Fallback to re-login requirement: reset and signal unauthorized
@@ -174,19 +294,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     }
   };
 
-  // Wire auth with HTTP client
+  // Wire auth with HTTP client.
   useEffect(() => {
     configureAuth({
       getAccessToken: () => accessToken,
       refresh,
-      onUnauthorized: logout
+      onUnauthorized: () => {
+        // During initial hydration, avoid aggressive logout loops from transient 401s.
+        if (isAuthInitializing) return;
+        logout();
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, refreshToken, remember]);
+  }, [accessToken, refreshToken, remember, isAuthInitializing]);
 
   const value = useMemo<AuthContextType>(
     () => ({
-      isAuthenticated: Boolean(accessToken),
+      isAuthenticated: Boolean(accessToken) && isJwtUsable(accessToken),
+      isAuthInitializing,
       accessToken,
       refreshToken,
       roles,
@@ -196,7 +321,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
       login,
       logout
     }),
-    [accessToken, refreshToken, roles, user, organizationId, remember]
+    [accessToken, refreshToken, roles, user, organizationId, remember, isAuthInitializing]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

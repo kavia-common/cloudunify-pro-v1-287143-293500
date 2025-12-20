@@ -17,7 +17,16 @@ import { useAuth } from './store/auth';
  * Unauthenticated -> /login; Authenticated -> /app
  */
 function AuthIndex(): JSX.Element {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthInitializing } = useAuth();
+
+  if (isAuthInitializing) {
+    return (
+      <div style={{ padding: 24 }} role="status" aria-live="polite">
+        Loading…
+      </div>
+    );
+  }
+
   return <Navigate to={isAuthenticated ? '/app' : '/login'} replace />;
 }
 

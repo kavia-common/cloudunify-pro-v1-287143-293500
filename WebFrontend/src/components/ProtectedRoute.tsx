@@ -6,10 +6,21 @@ import { useAuth } from '../store/auth';
 export default function ProtectedRoute({ children }: { children: React.ReactNode }): JSX.Element {
   /**
    * Guard component that requires the user to be authenticated.
-   * If unauthenticated, navigates to /login and preserves the "from" location.
+   *
+   * IMPORTANT:
+   * - While auth is initializing (hydrating from storage), we must not redirect yet,
+   *   otherwise we can create a login↔dashboard loop.
    */
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthInitializing } = useAuth();
   const location = useLocation();
+
+  if (isAuthInitializing) {
+    return (
+      <div style={{ padding: 24 }} role="status" aria-live="polite">
+        Loading…
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
