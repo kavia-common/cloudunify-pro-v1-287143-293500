@@ -8,6 +8,7 @@ import Recommendations from './pages/Recommendations';
 import Automation from './pages/Automation';
 import Activity from './pages/Activity';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './store/auth';
@@ -38,8 +39,9 @@ export default function App(): JSX.Element {
       {/* Default landing based on auth */}
       <Route path="/" element={<AuthIndex />} />
 
-      {/* Public route: Login (standalone, no shell layout) */}
+      {/* Public routes (standalone, no shell layout) */}
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
 
       {/* Protected application shell with nested routes */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>

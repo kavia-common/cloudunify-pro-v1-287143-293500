@@ -1,38 +1,51 @@
-import React, { useState } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 
 // PUBLIC_INTERFACE
 export default function Login(): JSX.Element {
   /**
-   * Login page with email/password and optional "Remember me" to persist tokens.
-   * On successful login, navigates to dashboard or the originally requested page.
-   * The form is centered both vertically and horizontally for better UX.
+   * Login page with email/password.
+   * - Optional "Remember me" persists tokens via the existing auth store:
+   *   - sessionStorage by default
+   *   - localStorage if remember me checked
+   * - On successful login, navigates to dashboard or originally requested page.
+   * - Shows a success message when redirected from successful signup.
    */
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation() as any;
   const fromPath = location?.state?.from?.pathname ?? '/app';
 
+  const signupSuccess = Boolean(location?.state?.signupSuccess);
+  const rememberSuggested = Boolean(location?.state?.rememberSuggested);
+
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [remember, setRemember] = useState<boolean>(false);
+  const [remember, setRemember] = useState<boolean>(rememberSuggested);
+
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
-  const isValid = Boolean(email && password);
+  const isValid = useMemo(() => Boolean(email.trim() && password), [email, password]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid || loading) return;
+
     setError('');
     setLoading(true);
     try {
-      await login({ email, password }, remember);
+      await login({ email: email.trim(), password }, remember);
       navigate(fromPath, { replace: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
+
       if (status === 401) {
         setError('Invalid email or password.');
+      } else if (status === 422) {
+        // FastAPI validation errors are often 422
+        setError(err?.message || 'Please check your input and try again.');
       } else if (status) {
         setError(err?.message || `Login failed (HTTP ${status}).`);
       } else {
@@ -68,61 +81,100 @@ export default function Login(): JSX.Element {
   };
 
   return (
-    <main id="main" role="main" tabIndex={-1} style={wrapperStyle} aria-label="Sign-in page">
+    <main id="main" role="main" tabIndex={-1} style={wrapperStyle} aria-label="Login page">
       <section style={cardStyle} role="region" aria-labelledby="login-title">
-        <h1 className="title" id="login-title" style={headerStyle}>Sign in</h1>
+        <h1 className="title" id="login-title" style={headerStyle}>
+          Sign in
+        </h1>
+
+        {signupSuccess && !isAuthenticated && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              border: '1px solid var(--border-color)',
+              background: 'rgba(0, 128, 0, 0.06)',
+              padding: 12,
+              borderRadius: 10,
+              marginBottom: 12
+            }}
+          >
+            Account created successfully. Please sign in.
+          </div>
+        )}
+
         {isAuthenticated ? (
           <p className="description" style={{ textAlign: 'center' }}>
             You are already signed in. Go to your <Link to="/dashboard">Dashboard</Link>.
           </p>
         ) : (
-          <form onSubmit={onSubmit} aria-label="Login form" className="form">
-            <label>
-              <span>Email</span>
-              <input
-                type="email"
-                name="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              <span>Password</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              <span>Remember me</span>
-              <input
-                type="checkbox"
-                name="remember"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                aria-describedby="remember-help"
-              />
-            </label>
-            <small id="remember-help" className="description">
-              Store tokens in localStorage for persistent sessions (device-level).
-            </small>
-            {error && (
-              <div role="alert" aria-live="assertive" style={{ color: 'crimson' }}>
-                {error}
+          <>
+            <form onSubmit={onSubmit} aria-label="Login form" className="form" noValidate>
+              <div>
+                <label htmlFor="email">
+                  <span>Email</span>
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-            )}
-            <button type="submit" className="btn btn-primary" disabled={!isValid || loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
+
+              <div>
+                <label htmlFor="password">
+                  <span>Password</span>
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="remember" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <input
+                    id="remember"
+                    type="checkbox"
+                    name="remember"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    aria-describedby="remember-help"
+                  />
+                  <span>Remember me</span>
+                </label>
+                <small id="remember-help" className="description">
+                  Store tokens in localStorage for persistent sessions (device-level).
+                </small>
+              </div>
+
+              {error && (
+                <div role="alert" aria-live="assertive" style={{ color: 'crimson' }}>
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" className="btn btn-primary" disabled={!isValid || loading}>
+                {loading ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+
+            <p className="description" style={{ textAlign: 'center', marginTop: 12 }}>
+              Don’t have an account? <Link to="/signup">Create one</Link>.
+            </p>
+          </>
         )}
       </section>
     </main>
   );
 }
+
