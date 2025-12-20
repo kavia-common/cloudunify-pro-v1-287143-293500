@@ -30,7 +30,15 @@ export default function Login(): JSX.Element {
       await login({ email, password }, remember);
       navigate(fromPath, { replace: true });
     } catch (err: any) {
-      setError(err?.message || 'Login failed. Please try again.');
+      const status = err?.status as number | undefined;
+      if (status === 401) {
+        setError('Invalid email or password.');
+      } else if (status) {
+        setError(err?.message || `Login failed (HTTP ${status}).`);
+      } else {
+        // Network/CORS/runtime error: fetch() often throws without a status.
+        setError(err?.message || 'Unable to reach the server. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
