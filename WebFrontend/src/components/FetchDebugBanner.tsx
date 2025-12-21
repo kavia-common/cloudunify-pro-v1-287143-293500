@@ -22,9 +22,9 @@ export default function FetchDebugBanner(): JSX.Element | null {
   }, []);
 
   const summary = useMemo(() => {
-    const ok = statuses.filter((s) => s.state === 'ok').length;
-    const pending = statuses.filter((s) => s.state === 'pending').length;
-    const error = statuses.filter((s) => s.state === 'error').length;
+    const ok = statuses.filter((s: any) => s.state === 'ok').length;
+    const pending = statuses.filter((s: any) => s.state === 'pending').length;
+    const error = statuses.filter((s: any) => s.state === 'error').length;
     return { ok, pending, error, total: statuses.length };
   }, [statuses]);
 
@@ -59,7 +59,7 @@ export default function FetchDebugBanner(): JSX.Element | null {
             <div className="fetch-debug-banner__empty">No fetches recorded yet.</div>
           ) : (
             <ul className="fetch-debug-banner__list" role="list">
-              {statuses.map((s) => (
+              {statuses.map((s: any) => (
                 <li key={s.key} className={`fetch-debug-banner__item fetch-debug-banner__item--${s.state}`}>
                   <div className="fetch-debug-banner__itemHeader">
                     <code className="fetch-debug-banner__key">{s.key}</code>
