@@ -1,0 +1,4 @@
+{
+    "command": "npm run test",
+    "working_directory": "/home/kavia/workspace/code-generation/cloudunify-pro-v1-287143-293500/WebFrontend"
+}
